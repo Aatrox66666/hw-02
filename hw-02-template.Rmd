@@ -1,7 +1,7 @@
 ---
 title: "hw-02"
-author: "Your Name (S000000)"
-date: "`r Sys.Date()`"
+author: "Yuntian Bi (S2959213)"
+date: "`r Sys.Date(30/10/2026)`"
 output: html_document
 ---
 
@@ -11,8 +11,14 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 ```
 
+
 ```{r}
-strava_runs <- read_csv("data/strava_runs.csv")
+library(tidyverse)
+
+strava_runs <- read_csv(
+  "data/strava_runs.csv",
+  show_col_types = FALSE
+)
 ```
 
 ```{r}
@@ -33,50 +39,191 @@ data_5k_10k <- strava_runs %>%
 When you fill the missing part, remove the # symbol before running the code chunk and eval=FALSE
 
 ```{r ex1a, out.width="80%", eval=FALSE}
-data_5k_10k %>% 
-  # filter(______) %>%
+data_5k_10k %>%
+  filter(gender == "M") %>%
   filter(!is.na(average.heart.rate..bpm.)) %>%
-  # ggplot(aes(x = __________)) + 
-  geom_histogram(bins = 20)
+  ggplot(aes(x = average.heart.rate..bpm.)) +
+  geom_histogram(bins = 20, fill = "steelblue", colour = "white") +
+  labs(
+    title = "Average Heart Rate of Male Runners",
+    x = "Average heart rate (bpm)",
+    y = "Number of runs"
+  ) +
+  theme_minimal()
+
+data_5k_10k %>%
+  filter(gender == "M") %>%
+  filter(!is.na(average.heart.rate..bpm.)) %>%
+  summarise(
+    n_runs = n(),
+    mean_bpm = mean(average.heart.rate..bpm.),
+    median_bpm = median(average.heart.rate..bpm.),
+    sd_bpm = sd(average.heart.rate..bpm.),
+    iqr_bpm = IQR(average.heart.rate..bpm.)
+  ) %>%
+  knitr::kable(digits = 2)
 ```
+The mean average heart rate is 147.94 bpm and the median is 147.90 bpm. These similar values suggest little overall asymmetry, although they do not establish the shape of the distribution. The standard deviation is 17.22 bpm, indicating variation in average heart rate between runs.
 
-
-_Write your text to answer exercise 1a here (Please delete this message before submission!)_
 
 
 ```{r ex1b, out.width="80%"}
-# Write your code for Ex1b here
+data_5k_10k %>%
+  filter(gender == "F") %>%
+  filter(!is.na(average.heart.rate..bpm.)) %>%
+  ggplot(aes(x = average.heart.rate..bpm.)) +
+  geom_histogram(bins = 20, fill = "coral", colour = "white") +
+  labs(
+    title = "Average Heart Rate of Female Runners",
+    x = "Average heart rate (bpm)",
+    y = "Number of runs"
+  ) +
+  theme_minimal()
 
+data_5k_10k %>%
+  filter(gender == "F") %>%
+  filter(!is.na(average.heart.rate..bpm.)) %>%
+  summarise(
+    n_runs = n(),
+    mean_bpm = mean(average.heart.rate..bpm.),
+    median_bpm = median(average.heart.rate..bpm.),
+    sd_bpm = sd(average.heart.rate..bpm.),
+    iqr_bpm = IQR(average.heart.rate..bpm.)
+  ) %>%
+  knitr::kable(digits = 2)
 
 
 
 
 ```
 
+Female runners have a higher mean average heart rate than male runners (155.68 versus 147.94 bpm). Their median is also higher (156.70 versus 147.90 bpm). The female standard deviation is smaller (13.22 versus 17.22 bpm), indicating less variation. These comparisons describe the recorded runs, since individual runners may contribute multiple observations.
 
-_Write your text to answer exercise 1b here (Please delete this message before submission!)_
 
 
 ## Exercise 2
 
 ```{r ex2, out.width = "80%"}
-# Write your code to answer exercise 2a here
+pace_data <- data_5k_10k %>%
+  filter(
+    gender %in% c("M", "F"),
+    !is.na(elapsed.time..s.),
+    elapsed.time..s. > 0,
+    distance..m. > 0
+  ) %>%
+  mutate(
+    pace_min_km = (elapsed.time..s. / 60) /
+      (distance..m. / 1000),
+    event = factor(event, levels = c("5k", "10k")),
+    gender = factor(
+      gender,
+      levels = c("M", "F"),
+      labels = c("Male", "Female")
+    )
+  )
 
+ggplot(
+  pace_data,
+  aes(x = event, y = pace_min_km, fill = event)
+) +
+  geom_boxplot() +
+  facet_wrap(~ gender, nrow = 1, scales = "fixed") +
+  scale_fill_manual(
+    values = c("5k" = "skyblue", "10k" = "orange")
+  ) +
+  labs(
+    title = "Running Pace by Distance and Gender",
+    subtitle = "Lower pace values indicate faster running",
+    x = "Run distance",
+    y = "Pace (min/km)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+pace_data %>%
+  group_by(gender, event) %>%
+  summarise(
+    median_pace = median(pace_min_km),
+    iqr_pace = IQR(pace_min_km),
+    .groups = "drop"
+  ) %>%
+  knitr::kable(digits = 2)
 
 
 
 ```
 
-_Write your text to answer exercise 2b here (Please delete this message before submission!)_
-
-
+Male runners have lower median pace values than female runners for both distances, indicating faster typical running speeds in these records. The male median pace is 5.41 min/km for 5k and 5.12 min/km for 10k, compared with 6.00 and 5.92 min/km for females. For both genders, the median pace is slightly lower for 10k than for 5k. These comparisons do not necessarily mean that an individual runner runs faster over a longer distance.
 
 
 ## Exercise 3
 
 ```{r ex3, out.width = "80%"}
-# Write your code to answer exercise 3 here
+runner_groups <- strava_runs %>%
+  filter(!is.na(athlete)) %>%
+  group_by(athlete) %>%
+  summarise(
+    mean_distance_km = mean(distance..m., na.rm = TRUE) / 1000,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    runner_type = case_when(
+      mean_distance_km > 13 ~ "Long-distance runner",
+      mean_distance_km < 7 ~ "Short-distance runner",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(runner_type))
 
+runner_plot_data <- strava_runs %>%
+  inner_join(
+    runner_groups %>% select(athlete, runner_type),
+    by = "athlete"
+  ) %>%
+  filter(
+    !is.na(distance..m.),
+    !is.na(elapsed.time..s.),
+    distance..m. > 0,
+    elapsed.time..s. > 0
+  ) %>%
+  mutate(
+    distance_km = distance..m. / 1000,
+    speed_m_s = distance..m. / elapsed.time..s.
+  )
+
+ggplot(
+  runner_plot_data,
+  aes(
+    x = distance_km,
+    y = speed_m_s,
+    colour = runner_type
+  )
+) +
+  geom_point(alpha = 0.3, size = 2) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = FALSE
+  ) +
+  scale_colour_manual(
+    values = c(
+      "Long-distance runner" = "orange",
+      "Short-distance runner" = "forestgreen"
+    )
+  ) +
+  labs(
+    title = "Speed vs Distance for Long- and Short-Distance Runners",
+    subtitle = "Grouped by runners' average distance: >13 km vs <7 km",
+    x = "Run distance (km)",
+    y = "Run average speed (m/s)",
+    colour = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(size = 12),
+    plot.subtitle = element_text(size = 10)
+  )
 
 
 
@@ -84,14 +231,75 @@ _Write your text to answer exercise 2b here (Please delete this message before s
 ```
 
 
-_Write your text to answer exercise 3b here (Please delete this message before submission!)_
+The fitted line for long-distance runners lies above that for short-distance runners, suggesting higher average speeds at comparable distances. Both groups show a negative relationship between speed and distance, but the decline is steeper for short-distance runners. This is consistent with the hypothesis that the groups have different speed–distance profiles. However, the groups overlap substantially, and the plot does not establish that typical running distance causes these differences.
 
 
 ## Exercise 4
 
 ```{r ex4, out.width = "80%"}
-# Write your code to answer exercise 4 here
+gender_summary <- strava_runs %>%
+  filter(!is.na(gender)) %>%
+  group_by(gender) %>%
+  summarise(
+    mean_distance_km = mean(distance..m., na.rm = TRUE) / 1000,
+    mean_elapsed_time_min = mean(
+      elapsed.time..s.,
+      na.rm = TRUE
+    ) / 60,
+    .groups = "drop"
+  )
 
+knitr::kable(
+  gender_summary,
+  digits = 2,
+  caption = "Mean distance and elapsed time by gender"
+)
+
+gender_summary_long <- gender_summary %>%
+  pivot_longer(
+    cols = c(mean_distance_km, mean_elapsed_time_min),
+    names_to = "measure",
+    values_to = "mean_value"
+  ) %>%
+  mutate(
+    measure = factor(
+      measure,
+      levels = c("mean_distance_km", "mean_elapsed_time_min"),
+      labels = c(
+        "Mean distance (km)",
+        "Mean elapsed time (min)"
+      )
+    ),
+    gender = factor(
+      gender,
+      levels = c("M", "F"),
+      labels = c("Male", "Female")
+    )
+  )
+
+ggplot(
+  gender_summary_long,
+  aes(x = gender, y = mean_value, fill = gender)
+) +
+  geom_col(width = 0.6) +
+  geom_text(
+    aes(label = sprintf("%.2f", mean_value)),
+    vjust = -0.4
+  ) +
+  facet_wrap(~ measure, nrow = 1, scales = "free_y") +
+  scale_fill_manual(
+    values = c("Male" = "steelblue", "Female" = "coral")
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+  labs(
+    title = "Mean Run Distance and Elapsed Time by Gender",
+    x = "Gender",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
 
 
 
@@ -99,8 +307,7 @@ _Write your text to answer exercise 3b here (Please delete this message before s
 ```
 
 
-_Write your text to answer exercise 4b here (Please delete this message before submission!)_
-
+Male runners cover a greater mean distance per run than female runners (10.61 versus 9.70 km). However, mean elapsed time is almost identical for the two groups, at approximately 62.4 minutes. Thus, the male runs cover a greater distance on average despite having a similar average duration.
 
 
 
